@@ -6,17 +6,17 @@ import numpy as np
 from einops import rearrange 
 
 
-class LayerNorm3d(nn.Module): 
+class LayerNorm2d(nn.Module): 
     def __init__(self, n_feats):
-        super(LayerNorm3d, self).__init__() 
+        super(LayerNorm2d, self).__init__() 
         
         self.norm = nn.LayerNorm(n_feats) 
     
     def forward(self, x): 
         
-        x= rearrange(x, 'b c d h w -> b d h w c') 
+        x= rearrange(x, 'b c h w -> b h w c') 
         x = self.norm(x)
-        x= rearrange(x, 'b d h w c -> b c d h w') 
+        x= rearrange(x, 'b h w c -> b c h w') 
         return x 
     
 
@@ -25,12 +25,12 @@ class CALayer(nn.Module):
         super(CALayer, self).__init__()
 
 
-        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
 
         self.se = nn.Sequential(
-            nn.Conv3d(channels, channels // reduction, 1, padding=0, bias=True),
+            nn.Conv2d(channels, channels // reduction, 1, padding=0, bias=True),
             nn.ReLU(inplace=True),
-            nn.Conv3d(channels // reduction, channels, 1, padding=0, bias=True),
+            nn.Conv2d(channels // reduction, channels, 1, padding=0, bias=True),
             nn.Sigmoid()
     )
 
@@ -45,10 +45,10 @@ class Routing_Module(nn.Module):
     def __init__(self, global_dim, hidden_dim, num_expters):
         super(Routing_Module, self).__init__() 
         
-        self.conv1 = nn.Conv3d(in_channels=global_dim+hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
+        self.conv1 = nn.Conv2d(in_channels=global_dim+hidden_dim, out_channels=hidden_dim, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
 
         self.gelu = nn.GELU() 
-        self.conv3 = nn.Conv3d(in_channels=hidden_dim, out_channels=num_expters, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
+        self.conv3 = nn.Conv2d(in_channels=hidden_dim, out_channels=num_expters, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
         self.softmax = nn.Softmax(dim=1)
 
 
@@ -61,31 +61,7 @@ class Routing_Module(nn.Module):
 
         return logit, hidden 
 
-# class Attention_Expert(nn.Module):
-#     def __init__(self, n_feats, ch_exp_f = 3, reduction=16):
-#         super(Attention_Expert, self).__init__() 
-        
-#         hidden_feats = n_feats*ch_exp_f
-        
-#         self.conv1 = nn.Conv3d(in_channels=n_feats, out_channels=hidden_feats, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
-        
-#         self.conv2 = nn.Conv3d(in_channels=hidden_feats, out_channels=hidden_feats, kernel_size=3, padding=1, stride=1, groups=n_feats, bias=True) 
 
-#         self.gelu = nn.GELU() 
-        
-#         self.ca = CALayer(hidden_feats, reduction=reduction) 
-        
-#         self.conv3 = nn.Conv3d(in_channels=hidden_feats, out_channels=n_feats, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
-
-
-#     def forward(self, x): 
-#         out = self.conv1(x)
-#         out = self.conv2(out) 
-#         out = self.gelu(out) 
-#         out = self.ca(out) 
-#         out = self.conv3(out)
-
-#         return out  
 
 
 class Attention_Expert(nn.Module):
@@ -94,30 +70,30 @@ class Attention_Expert(nn.Module):
         self.num_heads = num_heads
         self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
 
-        self.qkv = nn.Conv3d(n_feats, n_feats*3, kernel_size=1, bias=bias)
-        self.dwconv = nn.Conv3d(n_feats, n_feats, kernel_size=3, stride=1, padding=1, groups=n_feats, bias=bias)
-        self.project_out = nn.Conv3d(n_feats, n_feats, kernel_size=1, bias=bias)
+        self.qkv = nn.Conv2d(n_feats, n_feats*3, kernel_size=1, bias=bias)
+        self.dwconv = nn.Conv2d(n_feats, n_feats, kernel_size=3, stride=1, padding=1, groups=n_feats, bias=bias)
+        self.project_out = nn.Conv2d(n_feats, n_feats, kernel_size=1, bias=bias)
         
 
 
     def forward(self, x): 
 
         
-        b,c,d,h,w = x.shape 
+        b,c,h,w = x.shape 
 
         qkv = self.qkv(x)
         q,k,v = qkv.chunk(3, dim=1)   
         
-        q = rearrange(q, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads)
-        k = rearrange(k, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads)
-        v = rearrange(v, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads)
+        q = rearrange(q, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k = rearrange(k, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v = rearrange(v, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
 
         attn = (q @ k.transpose(-2, -1)) * self.temperature
         attn = attn.softmax(dim=-1)
 
         out = (attn @ v)
         
-        out = rearrange(out, 'b head c (d h w) -> b (head c) d h w', head=self.num_heads, d=d, h=h, w=w) 
+        out = rearrange(out, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w) 
         
         out = self.dwconv(out)
 
@@ -135,23 +111,23 @@ class Attention_Bank(nn.Module):
         
         self.att_experts = nn.ModuleList([Attention_Expert(n_feats, ch_exp_f=ch_exp_list[i], reduction=reduction) for i in range(self.num_expters)]) 
         
-        self.avg_pool = nn.AdaptiveAvgPool3d(1) 
+        self.avg_pool = nn.AdaptiveAvgPool2d(1) 
         
         self.routing = Routing_Module(global_dim=n_feats, hidden_dim=16, num_expters=self.num_expters)
 
 
     def forward(self, x, hidden): 
 
-        b, c, d, h, w = x.size() 
+        b, c, h, w = x.size() 
         x_global = self.avg_pool(x) 
         logit, hidden_new = self.routing(x_global, hidden) 
         logit = logit.unsqueeze(-1)
 
         for i, att_layer in enumerate(self.att_experts):
             if i == 0:
-                out_matrix = att_layer(x).view(b, 1, c, d, h, w)
+                out_matrix = att_layer(x).view(b, 1, c, h, w)
             else:
-                out_matrix = torch.cat((out_matrix, att_layer(x).view(b,1, c, d, h, w)), dim=1)
+                out_matrix = torch.cat((out_matrix, att_layer(x).view(b,1, c, h, w)), dim=1)
         out = torch.sum(out_matrix*logit, dim=1)
 
         return  out, hidden_new, logit
@@ -162,9 +138,9 @@ class MLP_Expert(nn.Module):
     def __init__(self, in_feat, h_feat=None, out_feat=None):
         super().__init__()
         
-        self.fc1 = nn.Conv3d(in_channels=in_feat, out_channels=h_feat, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
+        self.fc1 = nn.Conv2d(in_channels=in_feat, out_channels=h_feat, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
         self.act = nn.GELU()
-        self.fc2 = nn.Conv3d(in_channels=h_feat, out_channels=out_feat, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
+        self.fc2 = nn.Conv2d(in_channels=h_feat, out_channels=out_feat, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
 
 
     def forward(self, x):
@@ -182,23 +158,23 @@ class MLP_Bank(nn.Module):
         
         self.mpl_experts = nn.ModuleList([MLP_Expert(in_feat=n_feats, h_feat=int(mlp_ratio_list[i]*n_feats), out_feat=n_feats) for i in range(self.num_expters)]) 
         
-        self.avg_pool = nn.AdaptiveAvgPool3d(1) 
+        self.avg_pool = nn.AdaptiveAvgPool2d(1) 
         
         self.routing = Routing_Module(global_dim=n_feats, hidden_dim=16, num_expters=self.num_expters)
 
 
     def forward(self, x, hidden): 
 
-        b, c, d, h, w = x.size() 
+        b, c, h, w = x.size() 
         x_global = self.avg_pool(x) 
         logit, hidden_new = self.routing(x_global, hidden) 
         logit = logit.unsqueeze(-1)
 
         for i, mlp_layer in enumerate(self.mpl_experts):
             if i == 0:
-                out_matrix = mlp_layer(x).view(b, 1, c, d, h, w)
+                out_matrix = mlp_layer(x).view(b, 1, c, h, w)
             else:
-                out_matrix = torch.cat((out_matrix, mlp_layer(x).view(b,1, c, d, h, w)), dim=1)
+                out_matrix = torch.cat((out_matrix, mlp_layer(x).view(b,1, c, h, w)), dim=1)
         out = torch.sum(out_matrix*logit, dim=1)
 
         return  out, hidden_new, logit
@@ -214,19 +190,19 @@ class Transformer_Block(nn.Module):
                  ): 
         super(Transformer_Block, self).__init__() 
         
-        self.norm1 = LayerNorm3d(n_feats) 
+        self.norm1 = LayerNorm2d(n_feats) 
 
         self.attention = Attention_Bank(n_feats, ch_exp_list = ch_exp_list, reduction=reduction)
         
         
-        self.norm2 = LayerNorm3d(n_feats) 
+        self.norm2 = LayerNorm2d(n_feats) 
         
         self.mlp = MLP_Bank(n_feats, mlp_ratio_list = mlp_ratio_list)
 
         
-        # self.conv = nn.Conv3d(in_channels=n_feats, out_channels=n_feats, kernel_size=3, padding=1, stride=1, ) 
-        self.beta = nn.Parameter(torch.ones((1, n_feats, 1, 1, 1)), requires_grad=True)
-        self.gamma = nn.Parameter(torch.ones((1, n_feats, 1, 1, 1)), requires_grad=True)
+
+        self.beta = nn.Parameter(torch.ones((1, n_feats, 1, 1)), requires_grad=True)
+        self.gamma = nn.Parameter(torch.ones((1, n_feats, 1, 1)), requires_grad=True)
 
         
     def forward(self, x, hidden): 
@@ -249,14 +225,14 @@ class Generator(nn.Module):
     def __init__(self, 
                 res_num=5,
                 n_feats=64, 
-                ch_exp_list=[1,1,1],
+                ch_exp_list=[1,2,3],
                 reduction=8,
-                mlp_ratio_list=[2, 2, 2],
-                loss_func=None
+                mlp_ratio_list=[0.5, 1, 2],
+                loss_fun=None
                  ):
         super(Generator, self).__init__() 
         
-        self.head_conv = nn.Conv3d(1, n_feats, 3, padding=1, stride=1)
+        self.head_conv = nn.Conv2d(1, n_feats, 3, padding=1, stride=1)
         
 
         
@@ -273,11 +249,11 @@ class Generator(nn.Module):
 
         self.body = nn.Sequential(*blocks) 
         
-        self.tail_conv = nn.Conv3d(n_feats, 1, 3, padding=1, stride=1) 
+        self.tail_conv = nn.Conv2d(n_feats, 1, 3, padding=1, stride=1) 
         
-        self.loss_func = loss_func 
+        self.loss_fun = loss_fun 
         
-        self.hidden = nn.Parameter(torch.ones((1, 16, 1, 1, 1)), requires_grad=True)
+        self.hidden = nn.Parameter(torch.ones((1, 16, 1, 1)), requires_grad=True)
 
 
 
@@ -286,46 +262,26 @@ class Generator(nn.Module):
         bs = x.shape[0] 
         # import pdb 
         # pdb.set_trace()
-        hidden = self.hidden.repeat(bs, 1, 1, 1, 1) 
+        hidden = self.hidden.repeat(bs, 1, 1, 1) 
         
 
         out = self.head_conv(x) 
         
-        skip = out.clone()
+
 
         for i, blk in enumerate(self.body): 
 
             out, hidden, _ = blk(out, hidden) 
                 
-        out = out + skip
+
         
-        out = self.tail_conv(out)
+        out = self.tail_conv(out) + x
         
         if label is None:
             return out
         else:
-            c_loss = self.loss_func(out, label) 
+            c_loss = self.loss_fun(out, label) 
 
             return c_loss 
 
 
-if __name__ == "__main__":
-    import time
-    import os
-    os.environ['CUDA_VISIBLE_DEVICES']='3'     
-    x = torch.ones(1, 1, 64, 64, 64).cuda() 
-    
-    # import os
-    # os.environ['CUDA_VISIBLE_DEVICES']='3,4,5,6,7' 
-    
-    model = Generator(res_num=5, n_feats=64, ch_exp_list=[1, 1, 1], reduction=8, mlp_ratio_list=[2, 2, 2], loss_func=nn.L1Loss()) 
-    
-    model.cuda() 
-    # model = nn.DataParallel(model)
-    since = time.time()
-    y = model(x, x) 
-    print(time.time()-since)
-    # blk = BasicLayer(in_feat=16) 
-    # y, loss = blk(x) 
-    import pdb 
-    pdb.set_trace()  
