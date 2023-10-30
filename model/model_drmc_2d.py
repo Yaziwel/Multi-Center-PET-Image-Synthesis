@@ -49,7 +49,7 @@ class Routing_Module(nn.Module):
 
         self.gelu = nn.GELU() 
         self.conv3 = nn.Conv2d(in_channels=hidden_dim, out_channels=num_expters, kernel_size=1, padding=0, stride=1, groups=1, bias=True) 
-        self.softmax = nn.Softmax(dim=1)
+        self.relu = nn.ReLU()
 
 
     def forward(self, x, h): 
@@ -57,7 +57,7 @@ class Routing_Module(nn.Module):
         hidden = self.gelu(out) 
 
         out = self.conv3(hidden)
-        logit = self.softmax(out)
+        logit = self.relu(out)
 
         return logit, hidden 
 
