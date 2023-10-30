@@ -225,9 +225,9 @@ class Generator(nn.Module):
     def __init__(self, 
                 res_num=5,
                 n_feats=64, 
-                ch_exp_list=[1,2,3],
+                ch_exp_list=[1,1,1],
                 reduction=8,
-                mlp_ratio_list=[0.5, 1, 2],
+                mlp_ratio_list=[2, 2, 2],
                 loss_fun=None
                  ):
         super(Generator, self).__init__() 
