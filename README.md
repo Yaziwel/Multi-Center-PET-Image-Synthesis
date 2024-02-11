@@ -13,13 +13,13 @@ Multi-center positron emission tomography (PET) image synthesis aims at recoveri
 DRMC: A Generalist Model with Dynamic Routing for Multi-Center PET Image Synthesis
 
 ```bibtex
-@misc{yang2023drmc,
-      title={DRMC: A Generalist Model with Dynamic Routing for Multi-Center PET Image Synthesis}, 
-      author={Zhiwen Yang and Yang Zhou and Hui Zhang and Bingzheng Wei and Yubo Fan and Yan Xu},
-      year={2023},
-      eprint={2307.05249},
-      archivePrefix={arXiv},
-      primaryClass={eess.IV}
+@inproceedings{yang2023drmc,
+  title={Drmc: A generalist model with dynamic routing for multi-center pet image synthesis},
+  author={Yang, Zhiwen and Zhou, Yang and Zhang, Hui and Wei, Bingzheng and Fan, Yubo and Xu, Yan},
+  booktitle={International Conference on Medical Image Computing and Computer-Assisted Intervention},
+  pages={36--46},
+  year={2023},
+  organization={Springer}
 }
 ```
 
