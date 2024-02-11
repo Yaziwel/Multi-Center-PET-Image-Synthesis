@@ -86,7 +86,10 @@ class Attention_Expert(nn.Module):
         
         q = rearrange(q, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
         k = rearrange(k, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
-        v = rearrange(v, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v = rearrange(v, 'b (head c) h w -> b head c (h w)', head=self.num_heads) 
+
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
 
         attn = (q @ k.transpose(-2, -1)) * self.temperature
         attn = attn.softmax(dim=-1)
@@ -223,7 +226,7 @@ class Transformer_Block(nn.Module):
 
 class Generator(nn.Module):
     def __init__(self, 
-                res_num=5,
+                res_num=6,
                 n_feats=64, 
                 ch_exp_list=[1,1,1],
                 reduction=8,

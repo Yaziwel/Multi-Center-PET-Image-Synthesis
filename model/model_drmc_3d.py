@@ -109,7 +109,10 @@ class Attention_Expert(nn.Module):
         
         q = rearrange(q, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads)
         k = rearrange(k, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads)
-        v = rearrange(v, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads)
+        v = rearrange(v, 'b (head c) d h w -> b head c (d h w)', head=self.num_heads) 
+
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
 
         attn = (q @ k.transpose(-2, -1)) * self.temperature
         attn = attn.softmax(dim=-1)
